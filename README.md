@@ -4,8 +4,6 @@ An interactive road trip planner for a Western USA camper van journey starting f
 
 **Live site:** https://vtesniere.github.io/US_trip/
 
----
-
 ## The Trip
 
 - **Start:** Los Angeles (LAX) — fly in, pick up a camper van
@@ -13,40 +11,34 @@ An interactive road trip planner for a Western USA camper van journey starting f
 - **Fixed stops:** Death Valley and Las Vegas appear on every route
 - **Budget:** Estimates for 4 people, including van rental
 
----
-
 ## Three Routes
 
-### A — Desert Southwest (14 days, ~1,540 miles)
+### A — Desert Southwest (14 days, approx. 1,540 miles)
 LAX → Death Valley → Las Vegas → Grand Canyon South Rim → Sedona → Tucson/Saguaro NP → White Sands NM → Santa Fe → fly home from ABQ
 
-**Estimated total:** ~$4,835 (~$1,210 per person)
+**Estimated total:** approx. $4,835 (approx. $1,210 per person)
 
-### B — Utah & Rockies (12 days, ~1,380 miles)
+### B — Utah & Rockies (12 days, approx. 1,380 miles)
 LAX → Death Valley → Las Vegas → Zion NP → Bryce Canyon → Arches/Moab → Mesa Verde → Denver → fly home from DEN
 
-**Estimated total:** ~$4,145 (~$1,036 per person)
+**Estimated total:** approx. $4,145 (approx. $1,036 per person)
 
-### C — Northern California Loop (10 days, ~1,390 miles)
+### C — Northern California Loop (10 days, approx. 1,390 miles)
 LAX → Big Sur (PCH) → San Francisco → Napa Valley → Yosemite → Sequoia/Kings Canyon → Death Valley → Las Vegas → back to LAX
 
-**Estimated total:** ~$3,435 (~$859 per person)
-
----
+**Estimated total:** approx. $3,435 (approx. $859 per person)
 
 ## Budget Assumptions
 
 | Item | Rate |
 |------|------|
-| Van rental | ~$150/day |
-| Gas | ~$0.18/mile (camper van) |
-| Food | ~$120/day for 4 |
-| Camping | ~$15/night avg (mix of free BLM and paid sites) |
+| Van rental | approx. $150/day |
+| Gas | approx. $0.18/mile (camper van) |
+| Food | approx. $120/day for 4 |
+| Camping | approx. $15/night avg (mix of free BLM and paid sites) |
 | Parks Pass | $80 one-time (America the Beautiful — covers all national parks) |
 
 Flights home are not included for routes A and B.
-
----
 
 ## Features
 
@@ -57,8 +49,6 @@ Flights home are not included for routes A and B.
 - Numbered stop markers with popups
 - Cost breakdown grid per route
 - Mobile responsive (map + sidebar split)
-
----
 
 ## Tech
 
