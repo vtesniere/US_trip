@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>US West Road Trip — Itinerary Planner</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; }
+    header p  { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+
+    #mode-btn {
+      margin-left: auto;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #mode-btn:hover { background: #334155; color: #e2e8f0; }
+
+    /* Day mode overrides */
+    body.day-mode { background: #f1f5f9; color: #1e293b; }
+    body.day-mode header { background: #fff; border-color: #e2e8f0; }
+    body.day-mode header h1 { color: #0f172a; }
+    body.day-mode header p  { color: #64748b; }
+    body.day-mode #mode-btn { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
+    body.day-mode #mode-btn:hover { background: #e2e8f0; }
+    body.day-mode .route-tabs { background: #fff; border-color: #e2e8f0; }
+    body.day-mode .route-tab  { color: #94a3b8; }
+    body.day-mode .route-tab:hover { color: #0f172a; }
+    body.day-mode .sidebar { background: #fff; border-color: #e2e8f0; }
+    body.day-mode .itin-header { border-color: #e2e8f0; }
+    body.day-mode .itin-sub  { color: #64748b; }
+    body.day-mode .badge { background: #f8fafc; border-color: #e2e8f0; color: #64748b; }
+    body.day-mode .cost-block { background: #f8fafc; border-color: #e2e8f0; }
+    body.day-mode .cost-block h3 { color: #94a3b8; }
+    body.day-mode .cost-item { background: #fff; }
+    body.day-mode .cost-label { color: #94a3b8; }
+    body.day-mode .cost-total { background: #eff6ff; border-color: #3b82f6; }
+    body.day-mode .cost-total .cost-value { color: #2563eb; }
+    body.day-mode .cost-note { color: #94a3b8; }
+    body.day-mode .section-heading { color: #94a3b8; }
+    body.day-mode .stop-card { background: #f8fafc; border-color: #e2e8f0; }
+    body.day-mode .stop-card:hover { border-color: #cbd5e1; }
+    body.day-mode .stop-card.selected { border-color: #3b82f6; }
+    body.day-mode .stop-name { color: #0f172a; }
+    body.day-mode .stop-meta { color: #94a3b8; }
+    body.day-mode .stop-body { color: #64748b; }
+    body.day-mode .hl-tag { background: #f1f5f9; border-color: #e2e8f0; color: #475569; }
+    body.day-mode .seg-card.seg-active { background: #f1f5f9; }
+    body.day-mode .seg-road  { color: #334155; }
+    body.day-mode .seg-notes { color: #94a3b8; }
+    body.day-mode .loading-bar { background: #fff; border-color: #e2e8f0; color: #64748b; }
+    body.day-mode .spinner { border-color: #e2e8f0; border-top-color: #3b82f6; }
+
+    .route-tabs {
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 0 16px;
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+    .route-tab {
+      padding: 10px 18px;
+      border: none;
+      background: none;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .route-tab:hover { color: #e2e8f0; }
+    .route-tab.active-A { color: #f97316; border-bottom-color: #f97316; }
+    .route-tab.active-B { color: #818cf8; border-bottom-color: #818cf8; }
+    .route-tab.active-C { color: #4ade80; border-bottom-color: #4ade80; }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+    #map { flex: 1; min-width: 0; }
+
+    .sidebar {
+      width: 390px;
+      background: #1e293b;
+      overflow-y: auto;
+      border-left: 1px solid #334155;
+      flex-shrink: 0;
+    }
+
+    /* Itinerary header */
+    .itin-header { padding: 18px 20px 14px; border-bottom: 1px solid #1e293b; }
+    .itin-title  { font-size: 1rem; font-weight: 800; margin-bottom: 3px; }
+    .itin-sub    { font-size: 0.72rem; color: #94a3b8; line-height: 1.5; }
+    .itin-badges { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .badge       { background: #0f172a; border-radius: 20px; padding: 3px 10px; font-size: 0.68rem; color: #94a3b8; border: 1px solid #334155; }
+
+    /* Cost block */
+    .cost-block { padding: 14px 20px; background: #0f172a; border-bottom: 1px solid #1e293b; }
+    .cost-block h3 { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #475569; margin-bottom: 10px; }
+    .cost-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .cost-item { background: #1e293b; border-radius: 8px; padding: 9px 12px; }
+    .cost-label { font-size: 0.65rem; color: #64748b; margin-bottom: 2px; }
+    .cost-value { font-size: 0.88rem; font-weight: 700; }
+    .cost-total { grid-column: 1 / -1; background: #172554; border-left: 3px solid #3b82f6; }
+    .cost-total .cost-value { color: #60a5fa; font-size: 0.95rem; }
+    .cost-note  { font-size: 0.65rem; color: #64748b; margin-top: 6px; line-height: 1.4; }
+
+    /* Section heading */
+    .section-heading {
+      padding: 14px 20px 6px;
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #475569;
+    }
+
+    /* Stop cards */
+    .stops-list { padding: 4px 12px 20px; }
+    .stop-card {
+      background: #0f172a;
+      border-radius: 10px;
+      margin-bottom: 6px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+      border: 1px solid #1e293b;
+    }
+    .stop-card:hover { transform: translateX(3px); border-color: #334155; }
+    .stop-card.selected { border-color: #3b82f6; }
+    .stop-header { display: flex; align-items: center; gap: 12px; padding: 11px 14px; }
+    .stop-num {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.72rem; font-weight: 800;
+      flex-shrink: 0;
+    }
+    .stop-info { flex: 1; min-width: 0; }
+    .stop-name { font-size: 0.84rem; font-weight: 700; }
+    .stop-meta { font-size: 0.68rem; color: #64748b; margin-top: 1px; }
+    .stop-body { padding: 0 14px 11px 54px; font-size: 0.72rem; color: #94a3b8; line-height: 1.55; }
+    .stop-highlights { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .hl-tag {
+      background: #1e293b;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 0.63rem;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+    }
+
+    /* Segment rows */
+    .seg-card {
+      background: transparent;
+      margin: 0 12px 4px;
+      padding: 7px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-left: 2px solid #334155;
+      font-size: 0.7rem;
+      margin-left: 36px;
+    }
+    .seg-arrow  { color: #475569; flex-shrink: 0; }
+    .seg-info   { flex: 1; }
+    .seg-road   { color: #cbd5e1; font-weight: 600; }
+    .seg-notes  { color: #475569; margin-top: 1px; }
+    .seg-dist   { text-align: right; flex-shrink: 0; font-weight: 700; color: #94a3b8; font-size: 0.68rem; }
+
+    /* Segment highlighted state */
+    .seg-card { cursor: pointer; border-radius: 4px; transition: background 0.15s; }
+    .seg-card:hover { background: #0f172a20; }
+    .seg-card.seg-active { background: #0f172a; border-radius: 4px; }
+
+    /* Loading spinner */
+    .loading-bar {
+      position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+      background: #1e293b; border: 1px solid #334155; border-radius: 20px;
+      padding: 5px 14px; font-size: 0.7rem; color: #94a3b8;
+      z-index: 1000; display: none; gap: 6px; align-items: center;
+    }
+    .loading-bar.visible { display: flex; }
+    .spinner {
+      width: 10px; height: 10px; border: 2px solid #334155;
+      border-top-color: #60a5fa; border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Mobile */
+    @media (max-width: 768px) {
+      .main { flex-direction: column; }
+      .sidebar { width: 100%; border-left: none; border-top: 1px solid #334155; height: 52dvh; flex-shrink: 0; }
+      #map { height: 48dvh; flex: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>&#127482;&#127480; US West Road Trip</h1>
+    <p>Starting from LAX &middot; Camper Van &middot; 4 Travellers &middot; 3 Itinerary Proposals</p>
+  </div>
+  <button id="mode-btn" onclick="toggleMode()">&#9728; Day Mode</button>
+</header>
+
+<div class="route-tabs">
+  <button class="route-tab active-A" onclick="selectRoute('A')">&#127965; A &mdash; Desert Southwest</button>
+  <button class="route-tab"          onclick="selectRoute('B')">&#9968; B &mdash; Utah &amp; Rockies</button>
+  <button class="route-tab"          onclick="selectRoute('C')">&#127795; C &mdash; Northern California</button>
+</div>
+
+<div class="main" style="position:relative">
+  <div id="map"></div>
+  <div class="sidebar" id="sidebar"></div>
+  <div class="loading-bar" id="loading-bar">
+    <div class="spinner"></div>
+    <span id="loading-text">Loading route…</span>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// PALETTE
+// ─────────────────────────────────────────────────────────────
+const COLORS = { A: '#f97316', B: '#818cf8', C: '#4ade80' };
+const DIM    = 0.18;   // opacity for non-highlighted segments
+
+// ─────────────────────────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────────────────────────
+const itineraries = {
+
+  // ══════════════════════════════════════════════════════════
+  A: {
+    name: 'Desert Southwest',
+    subtitle: 'LAX &rarr; Death Valley &rarr; Las Vegas &rarr; Grand Canyon &rarr; Sedona &rarr; Tucson &rarr; White Sands &rarr; Santa Fe &rarr; fly from ABQ',
+    duration: '14 days',
+    totalMiles: 1540,
+    totalKm: 2480,
+    costs: {
+      vanRental: '$2,100', gas: '$430', food: '$1,680',
+      camping: '$195', parks: '$80', misc: '$350',
+      total: '$4,835', perPerson: '$1,210',
+      note: '14 days &middot; 4 people &middot; van ~$150/day &middot; excludes flights'
+    },
+    stops: [
+      {
+        num: 1, name: 'Los Angeles', sub: 'Arrive LAX &middot; Pick up van &middot; Stock up',
+        days: 1, lat: 34.0522, lng: -118.2437,
+        desc: 'Land at LAX, collect your camper van, stock up on groceries and camping gear. First night at a Malibu campground or drive straight into the desert.',
+        highlights: ['Venice Beach walk', 'REI / grocery run', 'Malibu first camp']
+      },
+      {
+        num: 2, name: 'Death Valley NP', sub: 'Badwater &middot; Dunes &middot; Stargazing',
+        days: 2, lat: 36.4606, lng: -116.8672,
+        desc: 'The lowest, hottest, driest place in North America. Otherworldly salt flats, shifting sand dunes, and vivid painted canyon walls. Gold Tier Dark Sky Park — exceptional stargazing.',
+        highlights: ['Badwater Basin (−86 m)', 'Mesquite Flat Sand Dunes', 'Zabriskie Point at sunset', "Artist's Drive loop"]
+      },
+      {
+        num: 3, name: 'Las Vegas', sub: 'The Strip &middot; Red Rock Canyon day trip',
+        days: 2, lat: 36.1699, lng: -115.1398,
+        desc: 'Soak in the neon spectacle of the Strip, enjoy an all-you-can-eat buffet, and spend a morning at Red Rock Canyon National Conservation Area — stunning red sandstone just 20 miles west.',
+        highlights: ['The Strip &amp; Fremont Street', 'Red Rock Canyon hike', 'Bellagio fountains', 'Grand buffet dinner']
+      },
+      {
+        num: 4, name: 'Grand Canyon South Rim', sub: 'Mather Point &middot; Bright Angel Trail',
+        days: 2, lat: 36.0544, lng: -112.1401,
+        desc: "One of the world's great natural wonders. Watch sunrise from Mather Point, descend 2–4 miles into the canyon on Bright Angel Trail, and walk the Rim Trail at golden hour.",
+        highlights: ['Mather Point sunrise', 'Bright Angel Trail (2–4 mi)', 'Desert View Watchtower', 'Rim Trail walk']
+      },
+      {
+        num: 5, name: 'Sedona', sub: 'Red rocks &middot; Cathedral Rock &middot; Vortexes',
+        days: 1, lat: 34.8697, lng: -111.7657,
+        desc: 'Dramatic red sandstone buttes and towering mesas in the Verde Valley. World-class hiking, known for energy "vortex" sites. Descend via Oak Creek Canyon — one of the most scenic drives in Arizona.',
+        highlights: ["Cathedral Rock", "Devil's Bridge Trail", 'Bell Rock', 'Oak Creek Canyon']
+      },
+      {
+        num: 6, name: 'Tucson / Saguaro NP', sub: 'Iconic saguaro cactus forests',
+        days: 1, lat: 32.2226, lng: -110.9747,
+        desc: 'Gateway to Saguaro National Park — forests of towering saguaro cacti in the heart of the Sonoran Desert. Camp at the park or on nearby BLM land for free.',
+        highlights: ['Saguaro NP West', 'Arizona-Sonora Desert Museum', 'Gates Pass viewpoint', 'Free BLM camping nearby']
+      },
+      {
+        num: 7, name: 'White Sands NM', sub: 'Pure white gypsum dune fields',
+        days: 1, lat: 32.7872, lng: -106.3257,
+        desc: 'Miles of blinding white gypsum sand dunes — a truly alien landscape. Unparalleled at sunset when the dunes glow gold and pink. Backcountry camping permits available inside the park.',
+        highlights: ['Dune Life Nature Trail', 'Interdune Boardwalk', 'Sunset walk', 'Backcountry camp permit']
+      },
+      {
+        num: 8, name: 'Santa Fe / Albuquerque', sub: 'Adobe culture &middot; Fly home from ABQ',
+        days: 2, lat: 35.6870, lng: -105.9378,
+        desc: "End the trip in New Mexico's art capital. Explore the historic Plaza, Canyon Road galleries, and Georgia O'Keeffe Museum before driving to ABQ for your flight home.",
+        highlights: ['Santa Fe Historic Plaza', 'Canyon Road galleries', 'Meow Wolf Santa Fe', 'Fly from ABQ']
+      }
+    ],
+    segments: [
+      { from: 'LAX', to: 'Death Valley',       miles: 290, km: 470, time: '4 h 30 m', road: 'I-10 E &rarr; I-15 N &rarr; CA-127 N', notes: 'Stock up in Barstow — last big town before the park' },
+      { from: 'Death Valley', to: 'Las Vegas',  miles: 145, km: 235, time: '2 h 15 m', road: 'NV-160 E',                              notes: 'Short, easy desert hop through Nevada' },
+      { from: 'Las Vegas', to: 'Grand Canyon',  miles: 280, km: 450, time: '4 h 30 m', road: 'US-93 S &rarr; AZ-89 S',               notes: 'Through Kingman; viewpoints along AZ-89' },
+      { from: 'Grand Canyon', to: 'Sedona',     miles: 115, km: 185, time: '2 h 15 m', road: 'AZ-89A S',                             notes: 'Scenic Oak Creek Canyon descent into Sedona' },
+      { from: 'Sedona', to: 'Tucson',           miles: 180, km: 290, time: '3 h',      road: 'I-17 S &rarr; I-10 E',                 notes: 'Through Phoenix metro; avoid rush hour' },
+      { from: 'Tucson', to: 'White Sands',      miles: 255, km: 410, time: '4 h',      road: 'I-10 E &rarr; US-70 W',               notes: 'Long desert drive; fuel up in Las Cruces' },
+      { from: 'White Sands', to: 'Santa Fe',    miles: 210, km: 340, time: '3 h 30 m', road: 'US-70 E &rarr; I-25 N',               notes: 'Through Albuquerque then north to Santa Fe' }
+    ]
+  },
+
+  // ══════════════════════════════════════════════════════════
+  B: {
+    name: 'Utah &amp; Rockies',
+    subtitle: 'LAX &rarr; Death Valley &rarr; Las Vegas &rarr; Zion &rarr; Bryce Canyon &rarr; Arches &rarr; Mesa Verde &rarr; Denver &rarr; fly from DEN',
+    duration: '12 days',
+    totalMiles: 1380,
+    totalKm: 2220,
+    costs: {
+      vanRental: '$1,800', gas: '$360', food: '$1,440',
+      camping: '$165', parks: '$80', misc: '$300',
+      total: '$4,145', perPerson: '$1,036',
+      note: '12 days &middot; 4 people &middot; van ~$150/day &middot; + flights DEN&rarr;home'
+    },
+    stops: [
+      {
+        num: 1, name: 'Los Angeles', sub: 'Arrive LAX &middot; Van pickup &middot; Head east',
+        days: 1, lat: 34.0522, lng: -118.2437,
+        desc: 'Collect the van at LAX, load up on supplies, and head east toward the Mojave. Drive as far as Barstow or the edge of Death Valley the first evening.',
+        highlights: ['LAX van pickup', 'Grocery &amp; gear run', "In-N-Out Burger (obligatory)"]
+      },
+      {
+        num: 2, name: 'Death Valley NP', sub: 'Salt flats &middot; Dunes &middot; Dark sky',
+        days: 2, lat: 36.4606, lng: -116.8672,
+        desc: 'The most extreme desert in North America — below sea level, scorching in summer, eerie and beautiful year-round. Among the best stargazing locations in the US.',
+        highlights: ['Badwater Basin (−86 m)', 'Mesquite Flat Sand Dunes', 'Zabriskie Point', 'Stargazing / Milky Way']
+      },
+      {
+        num: 3, name: 'Las Vegas', sub: 'Quick city stop &middot; Red Rock Canyon',
+        days: 1, lat: 36.1699, lng: -115.1398,
+        desc: 'A fast Vegas hit: walk the Strip, enjoy a legendary buffet, then spend a morning at Red Rock Canyon before heading north into Utah.',
+        highlights: ['Strip walk &amp; buffet', 'Red Rock Canyon Scenic Drive', 'Neon Museum', 'Early start north']
+      },
+      {
+        num: 4, name: 'Zion National Park', sub: "Angels Landing &middot; The Narrows",
+        days: 2, lat: 37.2982, lng: -113.0263,
+        desc: "Utah's most popular park. Towering walls of red Navajo sandstone frame a lush canyon floor. Hike Angels Landing (permit required) for vertigo-inducing ridge views, or wade up the Virgin River in The Narrows.",
+        highlights: ['Angels Landing (permit needed)', "The Narrows (wade Virgin River)", 'Emerald Pools Trail', 'Canyon Overlook Trail']
+      },
+      {
+        num: 5, name: 'Bryce Canyon NP', sub: 'Hoodoo amphitheaters &middot; Sunrise Point',
+        days: 1, lat: 37.6283, lng: -112.1871,
+        desc: "Not technically a canyon — a series of massive natural amphitheaters carved into the edge of the Paunsaugunt Plateau, packed with thousands of orange-red hoodoo spires.",
+        highlights: ['Sunrise Point amphitheater', 'Navajo Loop Trail', "Queen's Garden Trail", 'Inspiration Point']
+      },
+      {
+        num: 6, name: 'Arches NP / Moab', sub: '2,000+ natural arches &middot; Delicate Arch',
+        days: 2, lat: 38.7331, lng: -109.5925,
+        desc: "Over 2,000 natural stone arches in a single park — including iconic Delicate Arch, the symbol of Utah. Moab is also a world-class mountain biking and adventure sports hub.",
+        highlights: ['Delicate Arch hike (3 mi, 480 ft)', 'Double Arch', 'Landscape Arch', 'Moab town &amp; restaurants']
+      },
+      {
+        num: 7, name: 'Mesa Verde NP', sub: 'Ancient cliff dwellings &middot; Cliff Palace',
+        days: 1, lat: 37.1853, lng: -108.4868,
+        desc: 'Some of the best-preserved ancient cliff dwellings in North America, built by Ancestral Puebloan people 700–1,400 years ago. Cliff Palace is the largest cliff dwelling on the continent.',
+        highlights: ['Cliff Palace guided tour', 'Balcony House', 'Chapin Mesa Archeological Museum', 'Mesa Top Loop Drive']
+      },
+      {
+        num: 8, name: 'Denver', sub: 'Return van &middot; City stop &middot; Fly home from DEN',
+        days: 1, lat: 39.7392, lng: -104.9903,
+        desc: "The 'Mile High City' is a perfect end point. Drop off the van, explore LoDo, visit Red Rocks Amphitheatre (30 min south), grab a craft beer, and fly home from Denver International.",
+        highlights: ['Red Rocks Amphitheatre', 'LoDo &amp; 16th Street Mall', 'Great Divide Brewing', 'Fly from DEN']
+      }
+    ],
+    segments: [
+      { from: 'LAX', to: 'Death Valley',      miles: 290, km: 470, time: '4 h 30 m', road: 'I-15 N &rarr; CA-127 N',       notes: 'Stock up in Barstow before entering the park' },
+      { from: 'Death Valley', to: 'Las Vegas', miles: 145, km: 235, time: '2 h 15 m', road: 'NV-160 E',                     notes: 'Quick desert hop into Nevada' },
+      { from: 'Las Vegas', to: 'Zion NP',      miles: 160, km: 260, time: '2 h 45 m', road: 'I-15 N &rarr; UT-9 E',        notes: 'Cross into Utah; enter via UT-9 (Zion–Mt. Carmel Hwy)' },
+      { from: 'Zion NP', to: 'Bryce Canyon',   miles: 85,  km: 135, time: '1 h 30 m', road: 'US-89 N &rarr; UT-12 W',     notes: 'UT-12 is one of America\'s most scenic byways' },
+      { from: 'Bryce Canyon', to: 'Arches',    miles: 215, km: 345, time: '3 h 30 m', road: 'UT-12 E &rarr; US-191 N',    notes: 'Option to stop at Capitol Reef NP en route' },
+      { from: 'Arches', to: 'Mesa Verde',       miles: 115, km: 185, time: '2 h',     road: 'US-191 S &rarr; US-160 W',   notes: 'Cross into Colorado through Cortez' },
+      { from: 'Mesa Verde', to: 'Denver',       miles: 370, km: 595, time: '5 h 30 m', road: 'US-160 E &rarr; US-285 N &rarr; I-70 E', notes: 'Long but scenic; mountain views approaching Denver' }
+    ]
+  },
+
+  // ══════════════════════════════════════════════════════════
+  C: {
+    name: 'Northern California Loop',
+    subtitle: 'LAX &rarr; Big Sur &rarr; San Francisco &rarr; Napa &rarr; Yosemite &rarr; Sequoia &rarr; Death Valley &rarr; Las Vegas &rarr; back to LAX',
+    duration: '10 days',
+    totalMiles: 1390,
+    totalKm: 2240,
+    costs: {
+      vanRental: '$1,500', gas: '$270', food: '$1,200',
+      camping: '$135', parks: '$80', misc: '$250',
+      total: '$3,435', perPerson: '$859',
+      note: '10 days &middot; 4 people &middot; van ~$150/day &middot; round trip back to LAX'
+    },
+    stops: [
+      {
+        num: 1, name: 'Los Angeles', sub: 'LAX &middot; Van pickup &middot; Head north on PCH',
+        days: 1, lat: 34.0522, lng: -118.2437,
+        desc: "Pick up the van at LAX and immediately head north on the Pacific Coast Highway. Even the first stretch through Malibu is spectacular — the trip begins the moment you leave the airport.",
+        highlights: ['LAX van pickup', 'Malibu stretch of PCH', 'First camp at Leo Carrillo SP']
+      },
+      {
+        num: 2, name: 'Big Sur', sub: 'PCH &middot; Bixby Bridge &middot; McWay Falls',
+        days: 1, lat: 36.2704, lng: -121.9027,
+        desc: "Arguably the most dramatic coastal drive in the world. Sheer cliffs plunge into the Pacific, punctuated by redwood groves and sea stacks. Drive slowly — every curve deserves a stop.",
+        highlights: ['Bixby Creek Bridge', 'McWay Falls (80-ft waterfall into ocean)', 'Pfeiffer Beach (purple sand)', 'Julia Pfeiffer Burns SP']
+      },
+      {
+        num: 3, name: 'San Francisco', sub: 'Golden Gate &middot; Alcatraz &middot; Muir Woods',
+        days: 2, lat: 37.7749, lng: -122.4194,
+        desc: 'Iconic city on the bay. Walk across the Golden Gate Bridge, ferry to Alcatraz, eat tacos in the Mission, and day-trip north to Muir Woods for ancient coastal redwoods.',
+        highlights: ['Golden Gate Bridge walk', 'Alcatraz Island ferry', 'Muir Woods NM (30 min north)', 'Mission District burritos']
+      },
+      {
+        num: 4, name: 'Napa Valley', sub: 'Wine country &middot; Vineyards &middot; Farm-to-table',
+        days: 1, lat: 38.2975, lng: -122.2869,
+        desc: "World-famous wine country just 90 minutes north of SF. Rolling vineyards, farm-to-table restaurants, and optional hot air balloon rides at sunrise over the valley.",
+        highlights: ['Silverado Trail wine tasting', 'Oxbow Public Market', 'Hot air balloon (optional)', 'Yountville restaurants']
+      },
+      {
+        num: 5, name: 'Yosemite NP', sub: 'El Capitan &middot; Half Dome &middot; Waterfalls',
+        days: 2, lat: 37.8651, lng: -119.5383,
+        desc: "The crown jewel of the Sierra Nevada. Towering granite walls, roaring waterfalls, ancient sequoias. Book a timed entry permit well in advance — Yosemite Valley is extremely popular.",
+        highlights: ['Yosemite Valley viewpoint (Tunnel View)', 'Upper Yosemite Falls trail', 'Mirror Lake loop', 'Camp 4 / Curry Village area']
+      },
+      {
+        num: 6, name: 'Sequoia &amp; Kings Canyon NP', sub: "World's largest trees &middot; General Sherman",
+        days: 1, lat: 36.4864, lng: -118.8268,
+        desc: "Home to the largest trees on Earth by volume. Walk among the Ancient Giants — General Sherman Tree is over 2,200 years old. Kings Canyon has dramatic granite cliffs rivaling Yosemite.",
+        highlights: ['General Sherman Tree', 'Giant Forest Museum', 'Moro Rock (360&deg; views)', 'Cedar Grove, Kings Canyon']
+      },
+      {
+        num: 7, name: 'Death Valley NP', sub: 'Salt flats &middot; Extremes &middot; Last desert camp',
+        days: 1, lat: 36.4606, lng: -116.8672,
+        desc: "Drop dramatically from the high Sierra into the lowest, hottest place in the Western Hemisphere. A stunning landscape contrast after days among giant trees.",
+        highlights: ['Badwater Basin (−86 m)', "Dante's View (1,669 m)", 'Mesquite Sand Dunes', 'Zabriskie Point sunset']
+      },
+      {
+        num: 8, name: 'Las Vegas &rarr; LAX', sub: 'Vegas send-off &middot; Drive back to LA',
+        days: 1, lat: 36.1699, lng: -115.1398,
+        desc: "One final night in Vegas — walk the Strip, enjoy a farewell dinner at the Bellagio, and drive back to LA the next morning to return the van at LAX.",
+        highlights: ['Bellagio fountains farewell', 'Strip last hurrah', 'Return drive via I-15', 'Van drop-off at LAX']
+      }
+    ],
+    segments: [
+      { from: 'LAX', to: 'Big Sur',              miles: 290, km: 470, time: '5 h',      road: 'US-101 N &rarr; CA-1 (PCH)',         notes: 'Take PCH — slower but breathtaking; allow extra time' },
+      { from: 'Big Sur', to: 'San Francisco',     miles: 145, km: 235, time: '3 h 30 m', road: 'CA-1 N',                            notes: 'Continue hugging the coast all the way into the Bay' },
+      { from: 'San Francisco', to: 'Napa',        miles:  55, km:  90, time: '1 h 15 m', road: 'US-101 N &rarr; CA-37 E',           notes: 'Quick hop across the bay via Petaluma' },
+      { from: 'Napa', to: 'Yosemite',             miles: 185, km: 300, time: '3 h 30 m', road: 'CA-12 E &rarr; CA-120 E',          notes: 'Enter via Big Oak Flat; timed entry permit required in summer' },
+      { from: 'Yosemite', to: 'Sequoia',          miles: 100, km: 160, time: '2 h 30 m', road: 'CA-41 S &rarr; CA-180 E',         notes: 'Winding mountain roads; camper vans over 22 ft restricted on Generals Hwy' },
+      { from: 'Sequoia', to: 'Death Valley',      miles: 200, km: 320, time: '3 h 30 m', road: 'CA-190 E',                        notes: 'Dramatic 6,000-ft descent to below sea level' },
+      { from: 'Death Valley', to: 'Las Vegas',    miles: 145, km: 235, time: '2 h 15 m', road: 'NV-160 E',                        notes: 'Short desert hop into Nevada' },
+      { from: 'Las Vegas', to: 'LAX',             miles: 270, km: 435, time: '4 h',      road: 'I-15 S',                          notes: 'Straight shot south; return van at LAX' }
+    ]
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// MAP + DAY/NIGHT
+// ─────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([37.5, -114], 6);
+
+const TILE_URLS = {
+  dark:  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+};
+let isDark = true;
+let tileLayer = L.tileLayer(TILE_URLS.dark, {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+  subdomains: 'abcd', maxZoom: 20
+}).addTo(map);
+
+// Dynamic popup / tooltip styles (updated on mode switch)
+const dynStyle = document.createElement('style');
+document.head.appendChild(dynStyle);
+
+function applyPopupStyles() {
+  if (isDark) {
+    dynStyle.textContent = `
+      .leaflet-popup-content-wrapper { background:#1e293b; color:#e2e8f0; border:1px solid #334155; box-shadow:0 4px 24px #0008; border-radius:10px; }
+      .leaflet-popup-tip { background:#1e293b; }
+      .dark-tip { background:#1e293b!important; color:#e2e8f0!important; border:1px solid #334155!important; font-size:0.72rem!important; border-radius:6px!important; padding:6px 10px!important; white-space:nowrap; }
+      .leaflet-tooltip.dark-tip::before { display:none; }
+    `;
+  } else {
+    dynStyle.textContent = `
+      .leaflet-popup-content-wrapper { background:#fff; color:#1e293b; border:1px solid #e2e8f0; box-shadow:0 4px 24px #0002; border-radius:10px; }
+      .leaflet-popup-tip { background:#fff; }
+      .dark-tip { background:#fff!important; color:#1e293b!important; border:1px solid #e2e8f0!important; font-size:0.72rem!important; border-radius:6px!important; padding:6px 10px!important; white-space:nowrap; }
+      .leaflet-tooltip.dark-tip::before { display:none; }
+    `;
+  }
+}
+applyPopupStyles();
+
+function toggleMode() {
+  isDark = !isDark;
+  // Swap tile layer
+  map.removeLayer(tileLayer);
+  tileLayer = L.tileLayer(isDark ? TILE_URLS.dark : TILE_URLS.light, {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd', maxZoom: 20
+  }).addTo(map);
+  // Make sure tile layer is below route layers
+  tileLayer.bringToBack();
+  // Swap body class and button label
+  document.body.classList.toggle('day-mode', !isDark);
+  document.getElementById('mode-btn').textContent = isDark ? '\u2600 Day Mode' : '\uD83C\uDF19 Night Mode';
+  applyPopupStyles();
+}
+
+// Per-route storage
+// segLines[key]   = array of L.polyline, one per driving leg
+// stopMks[key]    = array of L.marker, one per stop
+// mapGroup[key]   = L.layerGroup holding everything for that route
+const segLines  = {};
+const stopMks   = {};
+const mapGroup  = {};
+const built     = {};   // true once buildRoute has been called for this key
+
+let currentRoute  = 'A';
+let activeSegIdx  = -1;   // which leg is highlighted (-1 = none / show all)
+
+// ─────────────────────────────────────────────────────────────
+// LOADING BAR
+// ─────────────────────────────────────────────────────────────
+const loadingBar  = document.getElementById('loading-bar');
+const loadingText = document.getElementById('loading-text');
+let   pendingLegs = 0;
+
+function updateLoading(delta, routeKey) {
+  pendingLegs += delta;
+  if (pendingLegs > 0 && currentRoute === routeKey) {
+    loadingText.textContent = `Loading route… (${pendingLegs} legs remaining)`;
+    loadingBar.classList.add('visible');
+  } else {
+    loadingBar.classList.remove('visible');
+    pendingLegs = 0;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// OSRM — two servers, manual timeout, road-network geometry
+// ─────────────────────────────────────────────────────────────
+const OSRM_SERVERS = [
+  'https://router.project-osrm.org',
+  'https://routing.openstreetmap.de/routed-car'
+];
+
+async function fetchOSRM(fromLat, fromLng, toLat, toLng) {
+  for (const base of OSRM_SERVERS) {
+    const url = `${base}/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 14000);
+    try {
+      const res  = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      const data = await res.json();
+      if (data.routes?.[0]) {
+        // OSRM returns [lng, lat] pairs — swap to [lat, lng] for Leaflet
+        return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+      }
+    } catch (_) {
+      clearTimeout(timer);
+    }
+  }
+  return null;   // both servers failed — placeholder remains
+}
+
+// ─────────────────────────────────────────────────────────────
+// NUMBERED STOP MARKER
+// ─────────────────────────────────────────────────────────────
+function makeStopMarker(stop, color, routeKey, stopIdx) {
+  const icon = L.divIcon({
+    html: `<div style="
+      width:28px;height:28px;border-radius:50%;
+      background:${color};border:2.5px solid #fff;
+      box-shadow:0 2px 8px rgba(0,0,0,0.6);
+      display:flex;align-items:center;justify-content:center;
+      font-size:11px;font-weight:900;color:#fff;
+      font-family:system-ui,sans-serif;
+    ">${stop.num}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    className: ''
+  });
+
+  const m = L.marker([stop.lat, stop.lng], { icon, zIndexOffset: 100 });
+  m.bindPopup(`
+    <div style="font-family:system-ui;min-width:210px;padding:2px 0">
+      <div style="font-size:0.85rem;font-weight:800;margin-bottom:3px;color:${color}">${stop.num}. ${stop.name}</div>
+      <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:6px">${stop.sub}</div>
+      <div style="font-size:0.72rem;color:#cbd5e1;line-height:1.5">${stop.desc}</div>
+    </div>
+  `, { maxWidth: 280 });
+
+  // clicking marker highlights outgoing leg and syncs sidebar
+  m.on('click', () => {
+    highlightSegment(routeKey, stopIdx);
+    syncSidebarSelection(stopIdx, stopIdx < itineraries[routeKey].segments.length ? stopIdx : -1);
+  });
+
+  return m;
+}
+
+// ─────────────────────────────────────────────────────────────
+// BUILD ROUTE (placeholder → OSRM async replacement)
+// ─────────────────────────────────────────────────────────────
+async function buildRoute(routeKey) {
+  if (built[routeKey]) return;
+  built[routeKey] = true;
+
+  const itin  = itineraries[routeKey];
+  const color = COLORS[routeKey];
+  const stops = itin.stops;
+  const group = L.layerGroup().addTo(map);
+
+  mapGroup[routeKey] = group;
+  segLines[routeKey] = [];
+  stopMks[routeKey]  = [];
+
+  // 1. Draw straight-line placeholders for every leg immediately
+  for (let i = 0; i < stops.length - 1; i++) {
+    const from = stops[i], to = stops[i + 1];
+    const pl = L.polyline(
+      [[from.lat, from.lng], [to.lat, to.lng]],
+      { color, weight: 3, opacity: 0.45, dashArray: '8 6' }
+    );
+    attachSegTooltip(pl, routeKey, i);
+    pl.on('click', () => {
+      highlightSegment(routeKey, i);
+      syncSidebarSelection(i, i);
+    });
+    group.addLayer(pl);
+    segLines[routeKey].push(pl);
+  }
+
+  // 2. Add numbered stop markers
+  stops.forEach((stop, i) => {
+    const m = makeStopMarker(stop, color, routeKey, i);
+    group.addLayer(m);
+    stopMks[routeKey].push(m);
+  });
+
+  // 3. Fire OSRM fetches in background — replace placeholders as results arrive
+  const total = stops.length - 1;
+  pendingLegs = 0;
+  updateLoading(total, routeKey);
+
+  for (let i = 0; i < total; i++) {
+    const from = stops[i], to = stops[i + 1];
+    // Capture i in closure
+    (function (segIdx, fromStop, toStop) {
+      fetchOSRM(fromStop.lat, fromStop.lng, toStop.lat, toStop.lng).then(coords => {
+        updateLoading(-1, routeKey);
+        if (!coords) return;   // both servers failed — keep dashed placeholder
+
+        const oldPl = segLines[routeKey][segIdx];
+
+        // Build real-road polyline
+        const pl = L.polyline(coords, { color, weight: 4, opacity: 0.88 });
+        attachSegTooltip(pl, routeKey, segIdx);
+        pl.on('click', () => {
+          highlightSegment(routeKey, segIdx);
+          syncSidebarSelection(segIdx, segIdx);
+        });
+
+        // Always update the stored reference and the group's layer set
+        // (works even when the group is not currently on the map)
+        group.removeLayer(oldPl);
+        group.addLayer(pl);
+        segLines[routeKey][segIdx] = pl;
+
+        // Re-apply highlight if this segment is active
+        if (activeSegIdx === segIdx && currentRoute === routeKey) {
+          applyHighlight(routeKey, segIdx);
+        }
+      });
+    }(i, from, to));
+  }
+}
+
+function attachSegTooltip(pl, routeKey, segIdx) {
+  const itin = itineraries[routeKey];
+  const seg  = itin.segments[segIdx];
+  const from = itin.stops[segIdx].name;
+  const to   = itin.stops[segIdx + 1].name;
+  pl.bindTooltip(
+    `<b>${from} → ${to}</b><br>${seg.miles} mi · ${seg.time}<br><span style="color:#94a3b8">${seg.road}</span>`,
+    { sticky: true, className: 'dark-tip' }
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// HIGHLIGHT
+// ─────────────────────────────────────────────────────────────
+function applyHighlight(routeKey, segIdx) {
+  const lines = segLines[routeKey];
+  if (!lines) return;
+  lines.forEach((pl, i) => {
+    if (i === segIdx) {
+      pl.setStyle({ weight: 6, opacity: 1 });
+      pl.bringToFront();
+    } else {
+      pl.setStyle({ weight: 3, opacity: DIM });
+    }
+  });
+}
+
+function resetHighlight(routeKey) {
+  const lines = segLines[routeKey];
+  if (!lines) return;
+  lines.forEach(pl => pl.setStyle({ weight: 4, opacity: 0.88 }));
+}
+
+function highlightSegment(routeKey, segIdx) {
+  if (activeSegIdx === segIdx && currentRoute === routeKey) {
+    // Second click → reset to full-route view
+    activeSegIdx = -1;
+    resetHighlight(routeKey);
+    fitRoute(routeKey);
+    return;
+  }
+  activeSegIdx = segIdx;
+  applyHighlight(routeKey, segIdx);
+
+  // Fit map to this leg's two endpoints
+  const stops = itineraries[routeKey].stops;
+  const from  = stops[segIdx];
+  const to    = stops[Math.min(segIdx + 1, stops.length - 1)];
+  const bounds = L.latLngBounds([[from.lat, from.lng], [to.lat, to.lng]]);
+  map.fitBounds(bounds, { padding: [70, 70], maxZoom: 10 });
+}
+
+// ─────────────────────────────────────────────────────────────
+// SIDEBAR SYNC
+// ─────────────────────────────────────────────────────────────
+function syncSidebarSelection(stopIdx, segIdx) {
+  document.querySelectorAll('.stop-card').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll('.seg-card').forEach(el => el.classList.remove('seg-active'));
+
+  const stopEl = document.querySelector(`.stop-card[data-stop="${stopIdx}"]`);
+  if (stopEl) { stopEl.classList.add('selected'); stopEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+
+  const segEl = document.querySelector(`.seg-card[data-seg="${segIdx}"]`);
+  if (segEl) segEl.classList.add('seg-active');
+}
+
+// ─────────────────────────────────────────────────────────────
+// FIT WHOLE ROUTE
+// ─────────────────────────────────────────────────────────────
+function fitRoute(routeKey) {
+  const stops  = itineraries[routeKey].stops;
+  const bounds = L.latLngBounds(stops.map(s => [s.lat, s.lng]));
+  map.fitBounds(bounds, { padding: [50, 50] });
+}
+
+// ─────────────────────────────────────────────────────────────
+// SIDEBAR RENDER
+// ─────────────────────────────────────────────────────────────
+function renderSidebar(routeKey) {
+  const itin  = itineraries[routeKey];
+  const color = COLORS[routeKey];
+  const c     = itin.costs;
+
+  let html = `
+    <div class="itin-header">
+      <div class="itin-title" style="color:${color}">${itin.name}</div>
+      <div class="itin-sub">${itin.subtitle}</div>
+      <div class="itin-badges">
+        <span class="badge">&#128197; ${itin.duration}</span>
+        <span class="badge">&#128662; Camper Van</span>
+        <span class="badge">&#128205; ${itin.stops.length} stops</span>
+        <span class="badge">&#128739; ${itin.totalMiles} miles</span>
+      </div>
+    </div>
+
+    <div class="cost-block">
+      <h3>Estimated Budget &mdash; 4 People</h3>
+      <div class="cost-grid">
+        <div class="cost-item"><div class="cost-label">&#128662; Van Rental</div><div class="cost-value" style="color:${color}">${c.vanRental}</div></div>
+        <div class="cost-item"><div class="cost-label">&#9981; Gas</div><div class="cost-value" style="color:${color}">${c.gas}</div></div>
+        <div class="cost-item"><div class="cost-label">&#127828; Food</div><div class="cost-value" style="color:${color}">${c.food}</div></div>
+        <div class="cost-item"><div class="cost-label">&#9978; Camping</div><div class="cost-value" style="color:${color}">${c.camping}</div></div>
+        <div class="cost-item"><div class="cost-label">&#127966; Parks Pass</div><div class="cost-value" style="color:${color}">${c.parks}</div></div>
+        <div class="cost-item"><div class="cost-label">&#127917; Misc / Activities</div><div class="cost-value" style="color:${color}">${c.misc}</div></div>
+        <div class="cost-item cost-total">
+          <div class="cost-label">&#128176; Total</div>
+          <div class="cost-value">${c.total} <span style="font-size:0.72rem;font-weight:500;color:#93c5fd">(${c.perPerson} / person)</span></div>
+        </div>
+      </div>
+      <div class="cost-note">&#8505; ${c.note}. Gas ~$0.18/mi. Food ~$120/day for 4. Camping ~$15/night avg (free BLM + paid sites; one site for the van). America the Beautiful Pass ($80) covers all 4 passengers. Van ~$150/day.</div>
+    </div>
+
+    <div class="section-heading">Itinerary &amp; Driving Legs</div>
+    <div class="stops-list">
+  `;
+
+  itin.stops.forEach((stop, i) => {
+    const seg = itin.segments[i];
+    // Stop card — clicking focuses the outgoing leg (stop i → stop i+1)
+    html += `
+      <div class="stop-card" data-stop="${i}" onclick="onStopClick('${routeKey}', ${i})">
+        <div class="stop-header">
+          <div class="stop-num" style="background:${color}25;color:${color}">${stop.num}</div>
+          <div class="stop-info">
+            <div class="stop-name">${stop.name}</div>
+            <div class="stop-meta">&#128197; ${stop.days} day${stop.days > 1 ? 's' : ''} &nbsp;&middot;&nbsp; ${stop.sub}</div>
+          </div>
+        </div>
+        <div class="stop-body">
+          ${stop.desc}
+          <div class="stop-highlights">
+            ${stop.highlights.map(h => `<span class="hl-tag">&#9733; ${h}</span>`).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+    // Segment card — clicking focuses that specific leg
+    if (seg) {
+      html += `
+        <div class="seg-card" data-seg="${i}" style="border-left-color:${color}60"
+             onclick="onSegClick('${routeKey}', ${i})">
+          <span class="seg-arrow" style="color:${color}90">&#8595;</span>
+          <div class="seg-info">
+            <div class="seg-road">${seg.road}</div>
+            <div class="seg-notes">${seg.notes}</div>
+          </div>
+          <div class="seg-dist" style="color:${color}">${seg.miles} mi<br><span style="color:#475569;font-weight:400">${seg.time}</span></div>
+        </div>
+      `;
+    }
+  });
+
+  html += `</div>`;
+  document.getElementById('sidebar').innerHTML = html;
+}
+
+// ─────────────────────────────────────────────────────────────
+// CLICK HANDLERS (called from HTML)
+// ─────────────────────────────────────────────────────────────
+function onStopClick(routeKey, stopIdx) {
+  // Focus the outgoing leg from this stop; if last stop, zoom to it
+  const maxSeg = itineraries[routeKey].segments.length - 1;
+  const segIdx = Math.min(stopIdx, maxSeg);
+  highlightSegment(routeKey, segIdx);
+  syncSidebarSelection(stopIdx, segIdx);
+}
+
+function onSegClick(routeKey, segIdx) {
+  highlightSegment(routeKey, segIdx);
+  // scroll stop card into view for the origin of this leg
+  syncSidebarSelection(segIdx, segIdx);
+}
+
+// ─────────────────────────────────────────────────────────────
+// ROUTE SELECTION (tab switch)
+// ─────────────────────────────────────────────────────────────
+async function selectRoute(routeKey) {
+  currentRoute = routeKey;
+  activeSegIdx = -1;
+  pendingLegs  = 0;
+  loadingBar.classList.remove('visible');
+
+  // Update tabs
+  document.querySelectorAll('.route-tab').forEach(tab => {
+    tab.className = 'route-tab';
+    if (tab.getAttribute('onclick') === `selectRoute('${routeKey}')`) {
+      tab.className = `route-tab active-${routeKey}`;
+    }
+  });
+
+  // Hide all other routes
+  Object.entries(mapGroup).forEach(([k, grp]) => {
+    if (k !== routeKey && map.hasLayer(grp)) map.removeLayer(grp);
+  });
+
+  // Render sidebar immediately (doesn't depend on map layers)
+  renderSidebar(routeKey);
+
+  // Show / build this route
+  if (!built[routeKey]) {
+    await buildRoute(routeKey);   // draws placeholders synchronously, fires OSRM in bg
+  } else {
+    // Re-attach group if it was removed
+    if (!map.hasLayer(mapGroup[routeKey])) mapGroup[routeKey].addTo(map);
+    resetHighlight(routeKey);
+  }
+
+  fitRoute(routeKey);
+}
+
+// ─────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────
+selectRoute('A');
+</script>
+</body>
+</html>
