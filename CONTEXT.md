@@ -9,6 +9,8 @@
 
 An interactive road trip planner for a Western USA camper van journey starting from **LAX**. Built as a single-file static HTML app, styled to match the Oaxaca trip format.
 
+**Live URL:** https://vtesniere.github.io/US_trip/
+**GitHub repo:** `vtesniere/US_trip` (SSH push via `~/.ssh/id_ed25519`)
 **Local path:** `/Users/vladimirtesniere/Dev/Claude/US_trip/`
 
 ---
@@ -45,8 +47,12 @@ LAX → Big Sur (PCH) → San Francisco → Napa Valley → Yosemite → Sequoia
 
 ```
 US_trip/
-├── index.html     ← entire app (single file, ~340 lines)
-└── CONTEXT.md     ← this file
+├── index.html                    ← entire app (single file)
+├── README.md                     ← trip summary + link to live site
+├── CONTEXT.md                    ← this file
+└── .github/
+    └── workflows/
+        └── pages.yml             ← GitHub Actions auto-deploy to Pages
 ```
 
 ---
